@@ -3,25 +3,60 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const roleInputs = document.querySelectorAll("input[name='role']");
+  const studentEmailGroup = document.getElementById("student-email-group");
+  const dashboardEmailInput = document.getElementById("dashboard-email");
+  const loadDashboardBtn = document.getElementById("load-dashboard");
+  const studentDashboard = document.getElementById("student-dashboard");
+  const adminDashboard = document.getElementById("admin-dashboard");
+  const studentProfile = document.getElementById("student-profile");
+  const adminStudentList = document.getElementById("admin-student-list");
 
-  // Function to fetch activities from API
+  function setMessage(text, type = "info") {
+    messageDiv.textContent = text;
+    messageDiv.className = type;
+    messageDiv.classList.remove("hidden");
+
+    setTimeout(() => {
+      messageDiv.classList.add("hidden");
+    }, 5000);
+  }
+
+  function showSection(section) {
+    studentDashboard.classList.add("hidden");
+    adminDashboard.classList.add("hidden");
+
+    if (section === "student") {
+      studentDashboard.classList.remove("hidden");
+    } else if (section === "admin") {
+      adminDashboard.classList.remove("hidden");
+    }
+  }
+
+  function updateRoleUI() {
+    const selectedRole = document.querySelector("input[name='role']:checked").value;
+    studentEmailGroup.classList.toggle("hidden", selectedRole !== "student");
+    if (selectedRole === "student") {
+      showSection("student");
+    } else {
+      showSection("admin");
+    }
+  }
+
   async function fetchActivities() {
     try {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML =
+        '<option value="">-- Select an activity --</option>';
 
-      // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
 
-        const spotsLeft =
-          details.max_participants - details.participants.length;
-
-        // Create participants HTML with delete icons instead of bullet points
+        const spotsLeft = details.max_participants - details.participants.length;
         const participantsHTML =
           details.participants.length > 0
             ? `<div class="participants-section">
@@ -49,14 +84,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         activitiesList.appendChild(activityCard);
 
-        // Add option to select dropdown
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
       });
 
-      // Add event listeners to delete buttons
       document.querySelectorAll(".delete-btn").forEach((button) => {
         button.addEventListener("click", handleUnregister);
       });
@@ -67,7 +100,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Handle unregister functionality
   async function handleUnregister(event) {
     const button = event.target;
     const activity = button.getAttribute("data-activity");
@@ -75,42 +107,131 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/unregister?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(
+          email
+        )}`,
         {
           method: "DELETE",
         }
       );
 
       const result = await response.json();
-
       if (response.ok) {
-        messageDiv.textContent = result.message;
-        messageDiv.className = "success";
-
-        // Refresh activities list to show updated participants
-        fetchActivities();
+        setMessage(result.message, "success");
+        await fetchActivities();
+        const selectedRole = document.querySelector("input[name='role']:checked").value;
+        if (selectedRole === "student") {
+          const emailValue = dashboardEmailInput.value.trim();
+          if (emailValue) {
+            await fetchStudentProfile(emailValue);
+          }
+        } else if (selectedRole === "admin") {
+          await fetchAdminDashboard();
+        }
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        setMessage(result.detail || "An error occurred", "error");
       }
-
-      messageDiv.classList.remove("hidden");
-
-      // Hide message after 5 seconds
-      setTimeout(() => {
-        messageDiv.classList.add("hidden");
-      }, 5000);
     } catch (error) {
-      messageDiv.textContent = "Failed to unregister. Please try again.";
-      messageDiv.className = "error";
-      messageDiv.classList.remove("hidden");
+      setMessage("Failed to unregister. Please try again.", "error");
       console.error("Error unregistering:", error);
     }
   }
 
-  // Handle form submission
+  async function fetchStudentProfile(email) {
+    if (!email) {
+      studentProfile.innerHTML =
+        "<p>Please provide a student email to load the profile.</p>";
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/students/${encodeURIComponent(email)}`
+      );
+      const profile = await response.json();
+
+      renderStudentProfile(profile);
+    } catch (error) {
+      studentProfile.innerHTML =
+        "<p>Unable to load student profile at this time.</p>";
+      console.error("Error fetching student profile:", error);
+    }
+  }
+
+  function renderStudentProfile(profile) {
+    const activitiesMarkup = profile.activities.length
+      ? `<ul>${profile.activities
+          .map((activity) => `<li>${activity}</li>`)
+          .join("")}</ul>`
+      : "<p><em>No activities signed up yet.</em></p>";
+
+    studentProfile.innerHTML = `
+      <div class="activity-card">
+        <p><strong>Email:</strong> ${profile.email}</p>
+        <p><strong>Signed Up Activities:</strong></p>
+        ${activitiesMarkup}
+      </div>
+    `;
+  }
+
+  async function fetchAdminDashboard() {
+    try {
+      const response = await fetch("/admin/students");
+      const data = await response.json();
+      renderAdminStudentList(data.students);
+    } catch (error) {
+      adminStudentList.innerHTML =
+        "<p>Unable to load admin dashboard at this time.</p>";
+      console.error("Error fetching admin dashboard:", error);
+    }
+  }
+
+  function renderAdminStudentList(students) {
+    if (!students.length) {
+      adminStudentList.innerHTML =
+        "<p><em>No student profiles available yet.</em></p>";
+      return;
+    }
+
+    adminStudentList.innerHTML = students
+      .map(
+        (student) => `
+        <div class="activity-card">
+          <p><strong>Email:</strong> ${student.email}</p>
+          <p><strong>Signed Up:</strong></p>
+          <ul>
+            ${student.activities
+              .map((activity) => `<li>${activity}</li>`)
+              .join("")}
+          </ul>
+        </div>
+      `
+      )
+      .join("");
+  }
+
+  function loadDashboard() {
+    const selectedRole = document.querySelector("input[name='role']:checked").value;
+    if (selectedRole === "student") {
+      showSection("student");
+      fetchStudentProfile(dashboardEmailInput.value.trim());
+    } else {
+      showSection("admin");
+      fetchAdminDashboard();
+    }
+  }
+
+  roleInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      updateRoleUI();
+    });
+  });
+
+  loadDashboardBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    loadDashboard();
+  });
+
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -119,9 +240,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/signup?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(
+          email
+        )}`,
         {
           method: "POST",
         }
@@ -130,31 +251,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
 
       if (response.ok) {
-        messageDiv.textContent = result.message;
-        messageDiv.className = "success";
+        setMessage(result.message, "success");
         signupForm.reset();
-
-        // Refresh activities list to show updated participants
-        fetchActivities();
+        await fetchActivities();
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        setMessage(result.detail || "An error occurred", "error");
       }
-
-      messageDiv.classList.remove("hidden");
-
-      // Hide message after 5 seconds
-      setTimeout(() => {
-        messageDiv.classList.add("hidden");
-      }, 5000);
     } catch (error) {
-      messageDiv.textContent = "Failed to sign up. Please try again.";
-      messageDiv.className = "error";
-      messageDiv.classList.remove("hidden");
+      setMessage("Failed to sign up. Please try again.", "error");
       console.error("Error signing up:", error);
     }
   });
 
-  // Initialize app
   fetchActivities();
+  updateRoleUI();
 });
