@@ -13,11 +13,44 @@
     </header>
 
     <main>
+      <section id="role-selection">
+        <h3>Choose a Dashboard</h3>
+        <div class="form-group role-group">
+          <label>
+            <input type="radio" name="role" value="student" checked /> Student
+          </label>
+          <label>
+            <input type="radio" name="role" value="admin" /> Admin
+          </label>
+        </div>
+        <div class="form-group" id="student-email-group">
+          <label for="dashboard-email">Student Email:</label>
+          <input
+            type="email"
+            id="dashboard-email"
+            placeholder="your-email@mergington.edu"
+          />
+        </div>
+        <button id="load-dashboard">Load Dashboard</button>
+      </section>
+
       <section id="activities-container">
         <h3>Available Activities</h3>
         <div id="activities-list">
           <!-- Activities will be loaded here -->
           <p>Loading activities...</p>
+        </div>
+      </section>
+
+      <section id="student-dashboard" class="hidden">
+        <h3>Student Dashboard</h3>
+        <div id="student-profile"></div>
+      </section>
+
+      <section id="admin-dashboard" class="hidden">
+        <h3>Admin Dashboard</h3>
+        <div id="admin-student-list">
+          <!-- Admin student profiles will be shown here -->
         </div>
       </section>
 
