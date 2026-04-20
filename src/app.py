@@ -78,9 +78,37 @@ activities = {
 }
 
 
+def get_student_activities():
+    """Build an index of student emails to their signed-up activities."""
+    students = {}
+    for activity_name, details in activities.items():
+        for email in details["participants"]:
+            students.setdefault(email, []).append(activity_name)
+    return students
+
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
+
+
+@app.get("/students/{email}")
+def get_student_profile(email: str):
+    """Return the profile for a specific student email."""
+    students = get_student_activities()
+    return {"email": email, "activities": students.get(email, [])}
+
+
+@app.get("/admin/students")
+def get_all_student_profiles():
+    """Return a list of all student profiles with their signed-up activities."""
+    students = get_student_activities()
+    return {
+        "students": [
+            {"email": email, "activities": activities}
+            for email, activities in sorted(students.items())
+        ]
+    }
 
 
 @app.get("/activities")
